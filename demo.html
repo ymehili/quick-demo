@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR + PDF Generation Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="file"], input[type="text"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            border-radius: 5px;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .loading {
+            display: none;
+            color: #007bff;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>OCR + PDF Generation Demo</h1>
+    
+    <div class="container">
+        <h2>Extract Text from Image (OCR)</h2>
+        <form id="ocrForm">
+            <div class="form-group">
+                <label for="imageFile">Select Image File:</label>
+                <input type="file" id="imageFile" accept="image/*" required>
+            </div>
+            <button type="submit">Extract Text</button>
+        </form>
+        <div class="loading" id="ocrLoading">Processing image...</div>
+        <div id="ocrResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>Generate PDF from Text</h2>
+        <form id="pdfForm">
+            <div class="form-group">
+                <label for="pdfTitle">Document Title:</label>
+                <input type="text" id="pdfTitle" value="Generated Document">
+            </div>
+            <div class="form-group">
+                <label for="pdfText">Text Content:</label>
+                <textarea id="pdfText" placeholder="Enter text to convert to PDF..." required></textarea>
+            </div>
+            <button type="submit">Generate PDF</button>
+        </form>
+        <div class="loading" id="pdfLoading">Generating PDF...</div>
+        <div id="pdfResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>OCR to PDF (Combined)</h2>
+        <form id="ocrToPdfForm">
+            <div class="form-group">
+                <label for="combinedImageFile">Select Image File:</label>
+                <input type="file" id="combinedImageFile" accept="image/*" required>
+            </div>
+            <div class="form-group">
+                <label for="combinedTitle">Document Title:</label>
+                <input type="text" id="combinedTitle" value="OCR Document">
+            </div>
+            <button type="submit">Extract Text & Generate PDF</button>
+        </form>
+        <div class="loading" id="combinedLoading">Processing image and generating PDF...</div>
+        <div id="combinedResult"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        document.getElementById('ocrForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('imageFile');
+            const loading = document.getElementById('ocrLoading');
+            const result = document.getElementById('ocrResult');
+            
+            if (!fileInput.files[0]) return;
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            loading.style.display = 'block';
+            result.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${API_BASE}/ocr/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.innerHTML = `
+                        <div class="result success">
+                            <h3>Extracted Text:</h3>
+                            <p><strong>File:</strong> ${data.filename}</p>
+                            <p><strong>Text Length:</strong> ${data.text_length} characters</p>
+                            <div style="background: white; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-top: 10px;">
+                                <pre style="white-space: pre-wrap; margin: 0;">${data.extracted_text}</pre>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('pdfText').value = data.extracted_text;
+                } else {
+                    result.innerHTML = `<div class="result error">Error: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        document.getElementById('pdfForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('pdfTitle').value;
+            const text = document.getElementById('pdfText').value;
+            const loading = document.getElementById('pdfLoading');
+            const result = document.getElementById('pdfResult');
+            
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('text', text);
+            
+            loading.style.display = 'block';
+            result.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${API_BASE}/generate-pdf/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'generated_document.pdf';
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    result.innerHTML = `<div class="result success">PDF generated and download started!</div>`;
+                } else {
+                    const data = await response.json();
+                    result.innerHTML = `<div class="result error">Error: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        document.getElementById('ocrToPdfForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('combinedImageFile');
+            const title = document.getElementById('combinedTitle').value;
+            const loading = document.getElementById('combinedLoading');
+            const result = document.getElementById('combinedResult');
+            
+            if (!fileInput.files[0]) return;
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('title', title);
+            
+            loading.style.display = 'block';
+            result.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${API_BASE}/ocr-to-pdf/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ocr_${fileInput.files[0].name.split('.')[0]}.pdf`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    result.innerHTML = `<div class="result success">OCR completed and PDF generated! Download started.</div>`;
+                } else {
+                    const data = await response.json();
+                    result.innerHTML = `<div class="result error">Error: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
